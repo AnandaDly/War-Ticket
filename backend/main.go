@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"github.com/redis/go-redis/v9"
 
 	"github.com/joho/godotenv"
 )
@@ -44,6 +47,20 @@ func main() {
 	}
 
 	db.AutoMigrate(&Event{}, &TicketOrder{})
-	// REDIS_URL := os.Getenv("REDIS_URL")
 
+	REDIS_URL := os.Getenv("REDIS_URL")
+	ctx := context.Background()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     REDIS_URL,
+		Password: "",
+		DB:       0,
+	})
+
+	err = rdb.Ping(ctx).Err()
+	if err != nil {
+		panic(err)
+	} else {
+		fmt.Println("berhasil connect ke redis")
+	}
 }
