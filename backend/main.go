@@ -140,6 +140,16 @@ func main() {
 			"sisa_tiket": sisaTiket,
 		})
 	})
+	app.Get("/stock", func(c fiber.Ctx) error {
+		stok, err := rdb.Get(ctx, "ticket_stock").Result()
+		if err != nil {
+			if err == redis.Nil {
+				return c.Status(200).JSON(fiber.Map{"stock": 0})
+			}
+			return c.Status(500).JSON(fiber.Map{"message": "Gagal mengambil data stok"})
+		}
+		return c.Status(200).JSON(fiber.Map{"stock": stok})
+	})
 
 	log.Fatal(app.Listen(":8080"))
 }

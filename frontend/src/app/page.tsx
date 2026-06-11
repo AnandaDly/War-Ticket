@@ -1,12 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {BuyTicketResponse} from "@/types/ticket";
 
 export default function Home(){
   const [message, setMessage] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [status, setStatus] = useState<"sukses" | "gagal" | "">("");
+  const [stock, setStock] = useState<string>("-");
+
+  useEffect(() => {
+    const fetchStock = async () => {
+      try {
+        const response = await fetch("http://localhost:8080/stock");
+        const data = await response.json();
+        setStock(data.stock);
+      } catch (error) {
+        console.error("Gagal mengambil stok:", error);
+      }
+    };
+
+    fetchStock();
+  }, []);
 
   const handleBuyTicket = async ()=>{
     setLoading(true);
@@ -16,8 +31,8 @@ export default function Home(){
       const response = await fetch("http://localhost:8080/buy",{
         method:"POST",
       });
-
       const data:BuyTicketResponse = await response.json();
+
       setMessage(data.message);
       setStatus(data.status === "sukses" || data.status === "gagal" ? data.status : "");
     }catch(error){
@@ -31,6 +46,10 @@ export default function Home(){
   return (
     <div className="p-8 max-w-md mx-auto">
       <h1 className="text-2xl font-bold mb-4">Ticket War Dashboard</h1>
+      <p className="mb-4 text-gray-700">
+      Sisa Tiket Tersedia: <span className="font-bold text-xl">{stock}</span>
+      </p>  
+
       <button
       onClick={handleBuyTicket}
       disabled={loading}
@@ -42,6 +61,7 @@ export default function Home(){
       >
         {loading ? "Memproses..." : "Beli Tiket Sekarang"}
       </button>
+
       {message && (
         <p className={`mt-4 font-medium ${status === "sukses" ? "text-green-600" : "text-red-600"}`}>
           {message}
