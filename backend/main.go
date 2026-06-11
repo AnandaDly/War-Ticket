@@ -31,6 +31,17 @@ type TicketOrder struct {
 	Status  string
 }
 
+func ticketWorker(orderChan chan TicketOrder, db *gorm.DB) {
+	for order := range orderChan {
+		err := db.Create(&order).Error
+		if err != nil {
+			fmt.Println("Gagal menyimpan tiket ke DB: ", err)
+		} else {
+			fmt.Println("Tiket tersimpan di DB untuk user: ", order.UserID)
+		}
+	}
+}
+
 func main() {
 	fmt.Println("Memulai Ticket War Engine...")
 
@@ -95,6 +106,9 @@ func main() {
 		fmt.Println("Stok tiket berhasil disinkronisasi ke Redis!")
 	}
 
+	orderChan := make(chan TicketOrder, 100)
+	go ticketWorker(orderChan, db)
+
 	app := fiber.New()
 	app.Get("/", func(c fiber.Ctx) error {
 		return c.SendString("Ticket War API is running!")
@@ -111,6 +125,12 @@ func main() {
 				"message": "Maaf, tiket sudah habis!",
 			})
 		}
+		newOrder := TicketOrder{
+			EventID: 1,
+			UserID:  "user_pbl",
+			Status:  "success",
+		}
+		orderChan <- newOrder
 		return c.Status(200).JSON(fiber.Map{
 			"status":     "sukses",
 			"message":    "Berhasil mengamankan tiket!",
