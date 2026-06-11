@@ -100,5 +100,23 @@ func main() {
 		return c.SendString("Ticket War API is running!")
 	})
 
+	app.Post("/buy", func(c fiber.Ctx) error {
+		sisaTiket, err := rdb.Decr(ctx, "ticket_stock").Result()
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"message": "Stok tidak ditemukan"})
+		}
+		if sisaTiket < 0 {
+			return c.Status(400).JSON(fiber.Map{
+				"status":  "gagal",
+				"message": "Maaf, tiket sudah habis!",
+			})
+		}
+		return c.Status(200).JSON(fiber.Map{
+			"status":     "sukses",
+			"message":    "Berhasil mengamankan tiket!",
+			"sisa_tiket": sisaTiket,
+		})
+	})
+
 	log.Fatal(app.Listen(":8080"))
 }
