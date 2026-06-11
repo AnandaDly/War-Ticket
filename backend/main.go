@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -67,6 +68,7 @@ func main() {
 	}
 
 	var event Event
+	var stock int
 	err = db.First(&event).Error
 	if err != nil {
 		newEvent := Event{
@@ -80,6 +82,17 @@ func main() {
 		} else {
 			fmt.Println("Event berhasil dibuat: ", newEvent.Name)
 		}
+		event = newEvent
+		stock = newEvent.AvailableTickets
+	} else {
+		stock = event.AvailableTickets
+	}
+
+	err = rdb.Set(ctx, "ticket_stock", strconv.Itoa(stock), 0).Err()
+	if err != nil {
+		log.Fatal("Gagal set stok di Redis: ", err)
+	} else {
+		fmt.Println("Stok tiket berhasil disinkronisasi ke Redis!")
 	}
 
 	app := fiber.New()
