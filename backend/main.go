@@ -12,6 +12,8 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/joho/godotenv"
+
+	"github.com/gofiber/fiber/v3"
 )
 
 type Event struct {
@@ -79,4 +81,11 @@ func main() {
 			fmt.Println("Event berhasil dibuat: ", newEvent.Name)
 		}
 	}
+
+	app := fiber.New()
+	app.Get("/", func(c fiber.Ctx) error {
+		return c.SendString("Ticket War API is running!")
+	})
+
+	log.Fatal(app.Listen(":8080"))
 }
