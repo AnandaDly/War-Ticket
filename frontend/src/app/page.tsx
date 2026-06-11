@@ -35,6 +35,9 @@ export default function Home(){
 
       setMessage(data.message);
       setStatus(data.status === "sukses" || data.status === "gagal" ? data.status : "");
+      if(data.status === "sukses" && data.sisa_tiket !== undefined){
+        setStock(data.sisa_tiket.toString());
+      }
     }catch(error){
       setMessage("Terjadi kesalahan koneksi ke server.");
       setStatus("gagal");
