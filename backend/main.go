@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -65,6 +66,35 @@ func ticketWorker(orderChan chan TicketOrder, db *gorm.DB) {
 			fmt.Println("Tiket tersimpan di DB untuk user: ", order.UserID)
 		}
 	}
+}
+
+func AuthRequired(c fiber.Ctx) error {
+	authHeader := c.Get("Authorization")
+	if authHeader == "" {
+		return c.Status(401).JSON(fiber.Map{"message": "Akses ditolak, token tidak ada"})
+	}
+
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return c.Status(401).JSON(fiber.Map{"message": "Format token tidak valid"})
+	}
+	tokenString := parts[1]
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return []byte(jwtSecret), nil
+	})
+
+	if err != nil || !token.Valid {
+		return c.Status(401).JSON(fiber.Map{"message": "Token tidak valid atau kadaluarsa"})
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		c.Locals("user_id", claims["user_id"])
+		c.Locals("role", claims["role"])
+	}
+
+	return c.Next()
 }
 
 func main() {
@@ -199,7 +229,7 @@ func main() {
 		})
 	})
 
-	app.Post("/buy", func(c fiber.Ctx) error {
+	app.Post("/buy", AuthRequired, func(c fiber.Ctx) error {
 		sisaTiket, err := rdb.Decr(ctx, "ticket_stock").Result()
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{"message": "Stok tidak ditemukan"})
@@ -210,9 +240,24 @@ func main() {
 				"message": "Maaf, tiket sudah habis!",
 			})
 		}
+		userVal := c.Locals("user_id")
+
+		var UserIDStr string
+		switch v := userVal.(type) {
+		case float64:
+			UserIDStr = fmt.Sprintf("%.0f", v)
+		case int:
+			UserIDStr = strconv.Itoa(v)
+		case uint:
+			UserIDStr = strconv.FormatUint(uint64(v), 10)
+		case string:
+			UserIDStr = v
+		default:
+			return c.Status(401).JSON(fiber.Map{"message": "ID User tidak valid atau tidak ditemukan"})
+		}
 		newOrder := TicketOrder{
 			EventID: 1,
-			UserID:  "user_pbl",
+			UserID:  UserIDStr,
 			Status:  "success",
 		}
 		orderChan <- newOrder
