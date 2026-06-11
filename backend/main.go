@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
@@ -38,6 +40,12 @@ type User struct {
 	Email    string `gorm:"unique"`
 	Password string
 	Role     string
+}
+
+type RegisterRequest struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func ticketWorker(orderChan chan TicketOrder, db *gorm.DB) {
@@ -125,6 +133,33 @@ func main() {
 		return c.SendString("Ticket War API is running!")
 	})
 
+	app.Post("/register", func(c fiber.Ctx) error {
+		var req RegisterRequest
+		if err := c.Bind().JSON(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"message": "Data tidak valid"})
+		}
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"message": "Gagal mengenkripsi password"})
+		}
+		newUser := User{
+			Name:     req.Name,
+			Email:    req.Email,
+			Password: string(hashedPassword),
+			Role:     "buyer",
+		}
+		var existingUser User
+		err = db.Where("email = ?", req.Email).First(&existingUser).Error
+		if err == nil {
+			return c.Status(400).JSON(fiber.Map{"message": "Email sudah terdaftar"})
+		}
+		err = db.Create(&newUser).Error
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"message": "Gagal membuat user"})
+		}
+		return c.Status(201).JSON(fiber.Map{"message": "Registrasi Berhasil"})
+	})
+
 	app.Post("/buy", func(c fiber.Ctx) error {
 		sisaTiket, err := rdb.Decr(ctx, "ticket_stock").Result()
 		if err != nil {
@@ -148,6 +183,7 @@ func main() {
 			"sisa_tiket": sisaTiket,
 		})
 	})
+
 	app.Get("/stock", func(c fiber.Ctx) error {
 		stok, err := rdb.Get(ctx, "ticket_stock").Result()
 		if err != nil {
