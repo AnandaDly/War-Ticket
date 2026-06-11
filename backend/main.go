@@ -15,6 +15,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
 type Event struct {
@@ -110,6 +111,8 @@ func main() {
 	go ticketWorker(orderChan, db)
 
 	app := fiber.New()
+	app.Use(cors.New())
+
 	app.Get("/", func(c fiber.Ctx) error {
 		return c.SendString("Ticket War API is running!")
 	})
