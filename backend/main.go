@@ -6,11 +6,14 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/redis/go-redis/v9"
 
@@ -44,6 +47,11 @@ type User struct {
 
 type RegisterRequest struct {
 	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
@@ -158,6 +166,37 @@ func main() {
 			return c.Status(500).JSON(fiber.Map{"message": "Gagal membuat user"})
 		}
 		return c.Status(201).JSON(fiber.Map{"message": "Registrasi Berhasil"})
+	})
+
+	app.Post("/login", func(c fiber.Ctx) error {
+		var req LoginRequest
+		if err := c.Bind().JSON(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"message": "Data tidak valid"})
+		}
+		var user User
+		if err := db.Where("email = ?", req.Email).First(&user).Error; err != nil {
+			return c.Status(401).JSON(fiber.Map{"message": "Email atau password salah"})
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+			return c.Status(401).JSON(fiber.Map{"message": "Email atau password salah"})
+		}
+
+		claims := jwt.MapClaims{
+			"user_id": user.ID,
+			"email":   user.Email,
+			"role":    user.Role,
+			"exp":     time.Now().Add(time.Hour * 72).Unix(),
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		jwtSecret := os.Getenv("JWT_SECRET")
+		tokenString, err := token.SignedString([]byte(jwtSecret))
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"message": "Gagal membuat token"})
+		}
+		return c.Status(200).JSON(fiber.Map{
+			"message": "Login Berhasil",
+			"token":   tokenString,
+		})
 	})
 
 	app.Post("/buy", func(c fiber.Ctx) error {
