@@ -32,6 +32,14 @@ type TicketOrder struct {
 	Status  string
 }
 
+type User struct {
+	ID       uint
+	Name     string
+	Email    string `gorm:"unique"`
+	Password string
+	Role     string
+}
+
 func ticketWorker(orderChan chan TicketOrder, db *gorm.DB) {
 	for order := range orderChan {
 		err := db.Create(&order).Error
@@ -61,7 +69,7 @@ func main() {
 		fmt.Println("Berhasil Connect ke database")
 	}
 
-	db.AutoMigrate(&Event{}, &TicketOrder{})
+	db.AutoMigrate(&Event{}, &TicketOrder{}, &User{})
 
 	REDIS_URL := os.Getenv("REDIS_URL")
 	ctx := context.Background()
