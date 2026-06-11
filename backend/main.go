@@ -63,4 +63,20 @@ func main() {
 	} else {
 		fmt.Println("berhasil connect ke redis")
 	}
+
+	var event Event
+	err = db.First(&event).Error
+	if err != nil {
+		newEvent := Event{
+			Name:             "Konser Coldplay",
+			TotalTickets:     100,
+			AvailableTickets: 100,
+		}
+		err = db.Create(&newEvent).Error
+		if err != nil {
+			log.Fatal("Gagal membuat event: ", err)
+		} else {
+			fmt.Println("Event berhasil dibuat: ", newEvent.Name)
+		}
+	}
 }
