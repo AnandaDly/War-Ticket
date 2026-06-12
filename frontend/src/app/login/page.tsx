@@ -20,9 +20,7 @@ export default function LoginPage() {
 
       if (res.ok) {
         const data = await res.json();
-        // Menyimpan token ke localStorage
         localStorage.setItem("token", data.token);
-        // Mengarahkan pengguna ke halaman utama
         router.push("/");
       } else {
         alert("Login gagal, silakan periksa email dan password Anda.");

@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {BuyTicketResponse} from "@/types/ticket";
+import { BuyTicketResponse } from "@/types/ticket";
+import { useRouter } from "next/navigation"; 
 
-export default function Home(){
+export default function Home() {
+  const router = useRouter(); 
+
   const [message, setMessage] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [status, setStatus] = useState<"sukses" | "gagal" | "">("");
@@ -23,13 +26,22 @@ export default function Home(){
     fetchStock();
   }, []);
 
-  const handleBuyTicket = async ()=>{
+  const handleBuyTicket = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("Anda harus login terlebih dahulu!");
+      router.push("/login"); 
+      return;
+    }
     setLoading(true);
     setMessage("");
     
     try{
       const response = await fetch("http://localhost:8080/buy",{
         method:"POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
       });
       const data:BuyTicketResponse = await response.json();
 
