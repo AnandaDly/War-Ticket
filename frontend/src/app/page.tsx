@@ -1,131 +1,87 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BuyTicketResponse, EventData } from "@/types/ticket";
+import { EventData } from "@/types/ticket";
 import { useRouter } from "next/navigation";
 
-export default function Home() {
+export default function Catalog() {
+  const [events, setEvents] = useState<EventData[]>([]);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const [eventData, setEventData] = useState<EventData | null>(null);
-  const [selectedTier, setSelectedTier] = useState<number | null>(null);
-  const [message, setMessage] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
-  const [status, setStatus] = useState<"sukses" | "gagal" | "">("");
-
   useEffect(() => {
-    const fetchEvent = async () => {
+    const fetchAllEvents = async () => {
       try {
-        const response = await fetch("http://localhost:8080/events/1");
+        const response = await fetch("http://localhost:8080/events");
         if (response.ok) {
           const data = await response.json();
-          setEventData(data);
+          setEvents(data);
         }
       } catch (error) {
-        console.error("Gagal mengambil data event:", error);
+        console.error("Gagal memuat katalog:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchEvent();
+    fetchAllEvents();
   }, []);
 
-  const handleBuyTicket = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      alert("Anda harus login terlebih dahulu!");
-      router.push("/login");
-      return;
-    }
-
-    if (!selectedTier) {
-      alert("Silakan pilih kategori tiket terlebih dahulu!");
-      return;
-    }
-
-    setLoading(true);
-    setMessage("");
-
-    try {
-      const response = await fetch("http://localhost:8080/buy", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json", 
-        },
-        body: JSON.stringify({
-          event_id: 1,
-          ticket_tier_id: selectedTier,
-        }),
-      });
-
-      const data: BuyTicketResponse = await response.json();
-      setMessage(data.message);
-      setStatus(data.status === "sukses" || data.status === "gagal" ? data.status : "");
-
-      if (data.status === "sukses" && eventData) {
-        const updatedTiers = eventData.ticket_tiers.map((tier) => {
-          if (tier.id === selectedTier) {
-            return { ...tier, available_tickets: tier.available_tickets - 1 };
-          }
-          return tier;
-        });
-        setEventData({ ...eventData, ticket_tiers: updatedTiers });
-      }
-    } catch (error) {
-      setMessage("Terjadi kesalahan koneksi ke server.");
-      setStatus("gagal");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6 text-center">
-        {eventData ? eventData.name : "Memuat Event..."}
-      </h1>
-
-      {/* Tampilan Pilihan Kategori Tiket */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {eventData?.ticket_tiers.map((tier) => (
-          <div
-            key={tier.id}
-            onClick={() => setSelectedTier(tier.id)}
-            className={`p-4 border rounded-lg cursor-pointer transition-all ${
-              selectedTier === tier.id
-                ? "border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-500"
-                : "border-gray-200 hover:border-blue-300"
-            } ${tier.available_tickets === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            <h2 className="text-xl font-semibold">{tier.name}</h2>
-            <p className="text-gray-600 mb-2">Rp {tier.price.toLocaleString("id-ID")}</p>
-            <p className="text-sm font-medium">
-              Sisa Tiket:{" "}
-              <span className={tier.available_tickets < 10 ? "text-red-500 font-bold" : "text-green-600"}>
-                {tier.available_tickets}
-              </span>
-            </p>
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto">
+        <div className="flex justify-between items-end mb-10">
+          <div>
+            <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Katalog Event</h1>
+            <p className="text-gray-500 mt-2 text-lg">Temukan konser dan acara terbaik untukmu.</p>
           </div>
-        ))}
-      </div>
-
-      <button
-        onClick={handleBuyTicket}
-        disabled={loading || !selectedTier}
-        className={`w-full px-4 py-3 rounded text-white font-semibold transition ${
-          loading || !selectedTier
-            ? "bg-gray-400 cursor-not-allowed"
-            : "bg-blue-600 hover:bg-blue-700 shadow-lg"
-        }`}
-      >
-        {loading ? "Memproses..." : "Beli Tiket Sekarang"}
-      </button>
-
-      {message && (
-        <div className={`mt-4 p-3 rounded text-center font-medium ${status === "sukses" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-          {message}
+          <div className="space-x-4">
+            <button onClick={() => router.push("/login")} className="text-blue-600 font-medium hover:underline">Login</button>
+            <button onClick={() => router.push("/admin")} className="text-gray-600 font-medium hover:underline">Admin</button>
+          </div>
         </div>
-      )}
+
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="animate-pulse text-xl text-gray-400 font-medium">Memuat event menarik...</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+            {events.map((event) => {
+              const lowestPrice = Math.min(...event.ticket_tiers.map(t => t.price));
+              
+              return (
+                <div 
+                  key={event.id} 
+                  onClick={() => router.push(`/events/${event.id}`)}
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                >
+                  <div className="h-48 bg-gradient-to-br from-blue-500 to-indigo-600 w-full relative">
+                    <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
+                      <span className="text-white font-bold text-2xl opacity-50">TICKET WAR</span>
+                    </div>
+                  </div>
+                  
+                  <div className="p-6 flex-1 flex flex-col">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{event.name}</h2>
+                    <p className="text-sm text-gray-500 mb-4">{event.ticket_tiers.length} Kategori Tiket</p>
+                    
+                    <div className="mt-auto pt-4 border-t border-gray-100 flex justify-between items-center">
+                      <div>
+                        <p className="text-xs text-gray-400 uppercase font-semibold">Mulai dari</p>
+                        <p className="text-lg font-bold text-blue-600">Rp {lowestPrice.toLocaleString("id-ID")}</p>
+                      </div>
+                      <span className="bg-blue-50 text-blue-600 text-sm font-bold px-3 py-1 rounded-full">
+                        Beli &rarr;
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

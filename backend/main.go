@@ -25,8 +25,8 @@ import (
 )
 
 type Event struct {
-	ID          uint
-	Name        string
+	ID          uint         `gorm:"primaryKey" json:"id"`
+	Name        string       `json:"name"`
 	TicketTiers []TicketTier `gorm:"foreignKey:EventID" json:"ticket_tiers"`
 }
 
@@ -331,6 +331,16 @@ func main() {
 			}
 		}
 		return c.Status(200).JSON(event)
+	})
+
+	app.Get("/events", func(c fiber.Ctx) error {
+		var events []Event
+
+		if err := db.Preload("TicketTiers").Find(&events).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"message": "Gagal mengambil data event"})
+		}
+
+		return c.Status(200).JSON(events)
 	})
 
 	app.Post("/admin/events", AuthRequired, AdminOnly, func(c fiber.Ctx) error {

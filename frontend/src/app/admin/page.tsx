@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-// Tipe data lokal untuk form
 interface TierForm {
   name: string;
   price: number;
@@ -14,12 +13,11 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [eventName, setEventName] = useState("");
   const [tiers, setTiers] = useState<TierForm[]>([
-    { name: "", price: 0, total_tickets: 0 }, // Sediakan 1 baris kosong secara default
+    { name: "", price: 0, total_tickets: 0 },
   ]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
 
-  // Pengecekan token ringan di sisi klien
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -28,18 +26,15 @@ export default function AdminDashboard() {
     }
   }, [router]);
 
-  // Fungsi untuk menambah baris tiket baru
   const addTierRow = () => {
     setTiers([...tiers, { name: "", price: 0, total_tickets: 0 }]);
   };
 
-  // Fungsi untuk menghapus baris tiket
   const removeTierRow = (index: number) => {
     const newTiers = tiers.filter((_, i) => i !== index);
     setTiers(newTiers);
   };
 
-  // Fungsi untuk memperbarui data pada baris tiket tertentu
   const handleTierChange = (index: number, field: keyof TierForm, value: string | number) => {
     const newTiers = [...tiers];
     // @ts-expect-error - TypeScript akan mengeluh karena value bisa string atau number, tapi kita tahu field mana yang diubah
@@ -54,12 +49,11 @@ export default function AdminDashboard() {
 
     const token = localStorage.getItem("token");
 
-    // Persiapkan data sesuai struct backend Golang
     const payload = {
       name: eventName,
       ticket_tiers: tiers.map((tier) => ({
         ...tier,
-        available_tickets: tier.total_tickets, // Set available sama dengan total di awal
+        available_tickets: tier.total_tickets,
       })),
     };
 
@@ -78,7 +72,7 @@ export default function AdminDashboard() {
       if (response.ok) {
         setMessage({ text: "✅ Event berhasil dibuat dan live di server!", type: "success" });
         setEventName("");
-        setTiers([{ name: "", price: 0, total_tickets: 0 }]); // Reset form
+        setTiers([{ name: "", price: 0, total_tickets: 0 }]);
       } else {
         setMessage({ text: `❌ Gagal: ${data.message}`, type: "error" });
       }
@@ -109,7 +103,6 @@ export default function AdminDashboard() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Card 1: Informasi Dasar */}
           <div className="bg-white px-6 py-8 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">Informasi Event</h2>
             <div>
@@ -125,7 +118,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Card 2: Kategori Tiket Dinamis */}
           <div className="bg-white px-6 py-8 rounded-xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-800">Kategori Tiket</h2>
