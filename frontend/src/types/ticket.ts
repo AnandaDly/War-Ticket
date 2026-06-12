@@ -3,3 +3,17 @@ export interface BuyTicketResponse{
     message: string,
     sisa_tiket?: number
 }
+
+export interface TicketTier {
+  id: number;
+  name: string;
+  price: number;
+  total_tickets: number;
+  available_tickets: number;
+}
+
+export interface EventData {
+  id: number;
+  name: string;
+  ticket_tiers: TicketTier[];
+}
