@@ -52,7 +52,7 @@ export default function Home() {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json", 
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           event_id: Number(eventId),
@@ -61,22 +61,19 @@ export default function Home() {
       });
 
       const data: BuyTicketResponse = await response.json();
-      setMessage(data.message);
-      setStatus(data.status === "sukses" || data.status === "gagal" ? data.status : "");
-
-      if (data.status === "sukses" && eventData) {
-        const updatedTiers = eventData.ticket_tiers.map((tier) => {
-          if (tier.id === selectedTier) {
-            return { ...tier, available_tickets: tier.available_tickets - 1 };
-          }
-          return tier;
-        });
-        setEventData({ ...eventData, ticket_tiers: updatedTiers });
+      
+      if (response.ok && data.status === "sukses" && data.checkout_url) {
+        setMessage("Mengarahkan ke pembayaran yang aman...");
+        setStatus("sukses");
+        window.location.href = data.checkout_url; 
+      } else {
+        setMessage(data.message || "Gagal memproses tiket.");
+        setStatus("gagal");
+        setLoading(false);
       }
     } catch (error) {
       setMessage("Terjadi kesalahan koneksi ke server.");
       setStatus("gagal");
-    } finally {
       setLoading(false);
     }
   };

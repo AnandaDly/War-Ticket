@@ -22,6 +22,9 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
+
+	"github.com/stripe/stripe-go/v78"
+	"github.com/stripe/stripe-go/v78/checkout/session"
 )
 
 type Event struct {
@@ -100,6 +103,7 @@ func AuthRequired(c fiber.Ctx) error {
 	tokenString := parts[1]
 
 	jwtSecret := os.Getenv("JWT_SECRET")
+	stripe.Key = os.Getenv("STRIPE_SECRET_KEY")
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return []byte(jwtSecret), nil
 	})
@@ -289,17 +293,44 @@ func main() {
 		default:
 			return c.Status(401).JSON(fiber.Map{"message": "ID User tidak valid atau tidak ditemukan"})
 		}
+		var tier TicketTier
+		if err := db.First(&tier, req.TicketTierID).Error; err != nil {
+			return c.Status(404).JSON(fiber.Map{"message": "Kategori tiket tidak ditemukan"})
+		}
 		newOrder := TicketOrder{
 			EventID:      req.EventID,
 			TicketTierID: req.TicketTierID,
 			UserID:       UserIDStr,
-			Status:       "success",
+			Status:       "pending_payment",
 		}
 		orderChan <- newOrder
+		params := &stripe.CheckoutSessionParams{
+			PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
+			LineItems: []*stripe.CheckoutSessionLineItemParams{
+				{
+					PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
+						Currency: stripe.String("idr"),
+						ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
+							Name: stripe.String("Tiket: " + tier.Name),
+						},
+						UnitAmount: stripe.Int64(int64(tier.Price)),
+					},
+					Quantity: stripe.Int64(1),
+				},
+			},
+			Mode:       stripe.String(string(stripe.CheckoutSessionModePayment)),
+			SuccessURL: stripe.String("http://localhost:3000/payment-success"),
+			CancelURL:  stripe.String("http://localhost:3000/"),
+		}
+
+		s, err := session.New(params)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"message": "Gagal membuat sesi pembayaran Stripe"})
+		}
 		return c.Status(200).JSON(fiber.Map{
-			"status":     "sukses",
-			"message":    "Berhasil mengamankan tiket!",
-			"sisa_tiket": sisaTiket,
+			"status":       "sukses",
+			"message":      "Tiket diamankan! Mengarahkan ke pembayaran...",
+			"checkout_url": s.URL,
 		})
 	})
 

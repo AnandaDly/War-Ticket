@@ -1,7 +1,8 @@
 export interface BuyTicketResponse{
-    status:string,
-    message: string,
-    sisa_tiket?: number
+    status:string;
+    message: string;
+    sisa_tiket?: number;
+    checkout_url?: string;
 }
 
 export interface TicketTier {
