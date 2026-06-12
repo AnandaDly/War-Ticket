@@ -25,17 +25,26 @@ import (
 )
 
 type Event struct {
-	ID               uint
-	Name             string
-	TotalTickets     int
-	AvailableTickets int
+	ID          uint
+	Name        string
+	TicketTiers []TicketTier `gorm:"foreignKey:EventID" json:"ticket_tiers"`
+}
+
+type TicketTier struct {
+	ID               uint   `json:"id"`
+	EventID          uint   `json:"event_id"`
+	Name             string `json:"name"`
+	Price            int    `json:"price"`
+	TotalTickets     int    `json:"total_tickets"`
+	AvailableTickets int    `json:"available_tickets"`
 }
 
 type TicketOrder struct {
-	ID      uint
-	EventID uint
-	UserID  string
-	Status  string
+	ID           uint   `json:"id"`
+	EventID      uint   `json:"event_id"`
+	TicketTierID uint   `json:"ticket_tier_id"`
+	UserID       string `json:"user_id"`
+	Status       string `json:"status"`
 }
 
 type User struct {
@@ -55,6 +64,11 @@ type RegisterRequest struct {
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type BuyRequest struct {
+	EventID      uint `json:"event_id"`
+	TicketTierID uint `json:"ticket_tier_id"`
 }
 
 func ticketWorker(orderChan chan TicketOrder, db *gorm.DB) {
@@ -115,7 +129,7 @@ func main() {
 		fmt.Println("Berhasil Connect ke database")
 	}
 
-	db.AutoMigrate(&Event{}, &TicketOrder{}, &User{})
+	db.AutoMigrate(&Event{}, &TicketTier{}, &TicketOrder{}, &User{})
 
 	REDIS_URL := os.Getenv("REDIS_URL")
 	ctx := context.Background()
@@ -134,13 +148,14 @@ func main() {
 	}
 
 	var event Event
-	var stock int
-	err = db.First(&event).Error
+	err = db.Preload("TicketTiers").First(&event).Error
 	if err != nil {
 		newEvent := Event{
-			Name:             "Konser Coldplay",
-			TotalTickets:     100,
-			AvailableTickets: 100,
+			Name: "Konser Coldplay",
+			TicketTiers: []TicketTier{
+				{Name: "VIP", Price: 5000000, TotalTickets: 50, AvailableTickets: 50},
+				{Name: "Festival", Price: 2000000, TotalTickets: 150, AvailableTickets: 150},
+			},
 		}
 		err = db.Create(&newEvent).Error
 		if err != nil {
@@ -149,16 +164,15 @@ func main() {
 			fmt.Println("Event berhasil dibuat: ", newEvent.Name)
 		}
 		event = newEvent
-		stock = newEvent.AvailableTickets
-	} else {
-		stock = event.AvailableTickets
 	}
-
-	err = rdb.Set(ctx, "ticket_stock", strconv.Itoa(stock), 0).Err()
-	if err != nil {
-		log.Fatal("Gagal set stok di Redis: ", err)
-	} else {
-		fmt.Println("Stok tiket berhasil disinkronisasi ke Redis!")
+	for _, tier := range event.TicketTiers {
+		redisKey := fmt.Sprintf("event:%d:tier:%d:stock", event.ID, tier.ID)
+		err = rdb.Set(ctx, redisKey, tier.AvailableTickets, 0).Err()
+		if err != nil {
+			log.Fatalf("Gagal set stok di Redis untuk tier %s: %v", tier.Name, err)
+		} else {
+			fmt.Printf("Stok tiket %s berhasil disinkronisasi ke Redis!\n", tier.Name)
+		}
 	}
 
 	orderChan := make(chan TicketOrder, 100)
@@ -230,7 +244,13 @@ func main() {
 	})
 
 	app.Post("/buy", AuthRequired, func(c fiber.Ctx) error {
-		sisaTiket, err := rdb.Decr(ctx, "ticket_stock").Result()
+		var req BuyRequest
+		if err := c.Bind().JSON(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"message": "Format data tidak valid"})
+		}
+		redisKey := fmt.Sprintf("event:%d:tier:%d:stock", req.EventID, req.TicketTierID)
+
+		sisaTiket, err := rdb.Decr(ctx, redisKey).Result()
 		if err != nil {
 			return c.Status(404).JSON(fiber.Map{"message": "Stok tidak ditemukan"})
 		}
@@ -256,9 +276,10 @@ func main() {
 			return c.Status(401).JSON(fiber.Map{"message": "ID User tidak valid atau tidak ditemukan"})
 		}
 		newOrder := TicketOrder{
-			EventID: 1,
-			UserID:  UserIDStr,
-			Status:  "success",
+			EventID:      req.EventID,
+			TicketTierID: req.TicketTierID,
+			UserID:       UserIDStr,
+			Status:       "success",
 		}
 		orderChan <- newOrder
 		return c.Status(200).JSON(fiber.Map{
