@@ -71,6 +71,11 @@ type BuyRequest struct {
 	TicketTierID uint `json:"ticket_tier_id"`
 }
 
+type CreateEventRequest struct {
+	Name        string       `json:"name"`
+	TicketTiers []TicketTier `json:"ticket_tiers"`
+}
+
 func ticketWorker(orderChan chan TicketOrder, db *gorm.DB) {
 	for order := range orderChan {
 		err := db.Create(&order).Error
@@ -108,6 +113,15 @@ func AuthRequired(c fiber.Ctx) error {
 		c.Locals("role", claims["role"])
 	}
 
+	return c.Next()
+}
+
+func AdminOnly(c fiber.Ctx) error {
+	roleVal := c.Locals("role")
+	role, ok := roleVal.(string)
+	if !ok || role != "admin" {
+		return c.Status(403).JSON(fiber.Map{"message": "Akses ditolak, hanya admin yang dapat mengakses"})
+	}
 	return c.Next()
 }
 
@@ -317,6 +331,34 @@ func main() {
 			}
 		}
 		return c.Status(200).JSON(event)
+	})
+
+	app.Post("/admin/events", AuthRequired, AdminOnly, func(c fiber.Ctx) error {
+		var req CreateEventRequest
+		if err := c.Bind().JSON(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"message": "Format data tidak valid"})
+		}
+		newEvent := Event{
+			Name:        req.Name,
+			TicketTiers: req.TicketTiers,
+		}
+
+		if err := db.Create(&newEvent).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"message": "Gagal menyimpan event ke database"})
+		}
+
+		for _, tier := range newEvent.TicketTiers {
+			redisKey := fmt.Sprintf("event:%d:tier:%d:stock", newEvent.ID, tier.ID)
+			err := rdb.Set(ctx, redisKey, tier.TotalTickets, 0).Err()
+			if err != nil {
+				fmt.Println("❌ Gagal sinkronisasi Redis untuk tier:", tier.Name)
+			}
+		}
+
+		return c.Status(201).JSON(fiber.Map{
+			"message": "Event berhasil dibuat dan disinkronisasi ke Redis!",
+			"data":    newEvent,
+		})
 	})
 
 	log.Fatal(app.Listen(":8080"))
