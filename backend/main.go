@@ -289,15 +289,34 @@ func main() {
 		})
 	})
 
-	app.Get("/stock", func(c fiber.Ctx) error {
-		stok, err := rdb.Get(ctx, "ticket_stock").Result()
-		if err != nil {
-			if err == redis.Nil {
-				return c.Status(200).JSON(fiber.Map{"stock": 0})
-			}
-			return c.Status(500).JSON(fiber.Map{"message": "Gagal mengambil data stok"})
+	// app.Get("/stock", func(c fiber.Ctx) error {
+	// 	stok, err := rdb.Get(ctx, "ticket_stock").Result()
+	// 	if err != nil {
+	// 		if err == redis.Nil {
+	// 			return c.Status(200).JSON(fiber.Map{"stock": 0})
+	// 		}
+	// 		return c.Status(500).JSON(fiber.Map{"message": "Gagal mengambil data stok"})
+	// 	}
+	// 	return c.Status(200).JSON(fiber.Map{"stock": stok})
+	// })
+
+	app.Get("/events/:id", func(c fiber.Ctx) error {
+		eventID := c.Params("id")
+		var event Event
+
+		if err := db.Preload("TicketTiers").First(&event, eventID).Error; err != nil {
+			return c.Status(404).JSON(fiber.Map{"message": "Event tidak ditemukan"})
 		}
-		return c.Status(200).JSON(fiber.Map{"stock": stok})
+		for i, tier := range event.TicketTiers {
+			redisKey := fmt.Sprintf("event:%s:tier:%d:stock", eventID, tier.ID)
+
+			stokStr, err := rdb.Get(ctx, redisKey).Result()
+			if err == nil {
+				stokInt, _ := strconv.Atoi(stokStr)
+				event.TicketTiers[i].AvailableTickets = stokInt
+			}
+		}
+		return c.Status(200).JSON(event)
 	})
 
 	log.Fatal(app.Listen(":8080"))
